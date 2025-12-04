@@ -1,3 +1,3 @@
-module github.com/Rhydori/logs
+module github.com/rhydori/logs
 
 go 1.25.3
