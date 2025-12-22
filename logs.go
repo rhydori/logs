@@ -34,7 +34,7 @@ type logEntry struct {
 }
 
 var rlog = logger{
-	logChan: make(chan logEntry, 1024),
+	logChan: make(chan logEntry, 128),
 }
 var colors logColors
 
