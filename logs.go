@@ -3,7 +3,6 @@ package logs
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -41,9 +40,7 @@ var colors logColors
 
 func init() {
 	if term.IsTerminal(int(os.Stdout.Fd())) {
-		if runtime.GOOS == "windows" {
-			ansi.EnableANSI()
-		}
+		ansi.EnableANSI()
 
 		colors = logColors{
 			reset:  "\033[0m",
