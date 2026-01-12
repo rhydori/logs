@@ -39,7 +39,8 @@ var rlog = logger{
 var colors logColors
 
 func init() {
-	if term.IsTerminal(int(os.Stdout.Fd())) {
+	noColorEnv := os.Getenv("NO_COLOR") == "true"
+	if !noColorEnv || term.IsTerminal(int(os.Stdout.Fd())) {
 		ansi.EnableANSI()
 
 		colors = logColors{
