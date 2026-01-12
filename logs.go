@@ -3,11 +3,12 @@ package logs
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/sys/windows"
+	"github.com/rhydori/logs/ansi"
 	"golang.org/x/term"
 )
 
@@ -38,18 +39,11 @@ var rlog = logger{
 }
 var colors logColors
 
-func enableANSI() {
-	h := windows.Handle(os.Stdout.Fd())
-
-	var mode uint32
-	windows.GetConsoleMode(h, &mode)
-	mode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
-	windows.SetConsoleMode(h, mode)
-}
-
 func init() {
 	if term.IsTerminal(int(os.Stdout.Fd())) {
-		enableANSI()
+		if runtime.GOOS == "windows" {
+			ansi.EnableANSI()
+		}
 
 		colors = logColors{
 			reset:  "\033[0m",
@@ -94,21 +88,15 @@ func Debug(args ...any) { sendLog("DEBUG", colors.cyan, args...) }
 func Info(args ...any)  { sendLog("INFO", colors.green, args...) }
 func Warn(args ...any)  { sendLog("WARN", colors.yellow, args...) }
 func Error(args ...any) { sendLog("ERROR", colors.purple, args...) }
-func Fatal(args ...any) {
-	sendLog("FATAL", colors.red, args...)
-	shutdown()
-}
+func Fatal(args ...any) { sendLog("FATAL", colors.red, args...); Close() }
 
 func Debugf(msg string, args ...any) { sendLogf("DEBUG", colors.cyan, msg, args...) }
 func Infof(msg string, args ...any)  { sendLogf("INFO", colors.green, msg, args...) }
 func Warnf(msg string, args ...any)  { sendLogf("WARN", colors.yellow, msg, args...) }
 func Errorf(msg string, args ...any) { sendLogf("ERROR", colors.purple, msg, args...) }
-func Fatalf(msg string, args ...any) {
-	sendLogf("FATAL", colors.red, msg, args...)
-	shutdown()
-}
+func Fatalf(msg string, args ...any) { sendLogf("FATAL", colors.red, msg, args...); Close() }
 
-func shutdown() {
+func Close() {
 	rlog.closeOnce.Do(func() {
 		close(rlog.logChan)
 		rlog.wg.Wait()
