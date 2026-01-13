@@ -2,7 +2,6 @@ package logs
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sync"
 	"time"
@@ -11,30 +10,22 @@ import (
 	"golang.org/x/term"
 )
 
-type logEntry struct {
-	level []byte
-	color []byte
-	buf   []byte
-}
-
-var out io.Writer = os.Stdout
-
 var (
-	logChan = make(chan *logEntry, 1024)
+	logChan = make(chan *[]byte, 1024)
 	bufPool = sync.Pool{
 		New: func() any {
 			b := make([]byte, 0, 256)
 			return &b
 		},
 	}
-	reset = []byte("")
+	reset = []byte("\033[0m")
 
-	red    = []byte("")
-	green  = []byte("")
-	yellow = []byte("")
-	//blue   = []byte("")
-	purple = []byte("")
-	cyan   = []byte("")
+	red    = []byte("\033[31m")
+	green  = []byte("\033[32m")
+	yellow = []byte("\033[33m")
+	blue   = []byte("\033[34m")
+	purple = []byte("\033[35m")
+	cyan   = []byte("\033[36m")
 
 	lDEBUG = []byte("DEBUG")
 	lINFO  = []byte("INFO")
@@ -44,28 +35,29 @@ var (
 )
 
 func init() {
+	isTerm := term.IsTerminal(int(os.Stdout.Fd()))
 	noColorEnv := os.Getenv("NO_COLOR") == "true"
-	if !noColorEnv || term.IsTerminal(int(os.Stdout.Fd())) {
+	if !noColorEnv && isTerm {
 		ansi.EnableANSI()
+	} else {
+		reset, red, green, yellow, blue, purple, cyan = nil, nil, nil, nil, nil, nil, nil
 	}
 
 	go writer()
 }
 
 func writer() {
-	for e := range logChan {
-		out.Write(e.buf)
-		bufPool.Put(&e.buf)
-	}
-}
+	for bp := range logChan {
+		os.Stdout.Write(*bp)
+		*bp = (*bp)[:0]
 
-func SetOutput(w io.Writer) {
-	out = w
+		bufPool.Put(bp)
+	}
 }
 
 func log(level, color []byte, msg string) {
 	bp := bufPool.Get().(*[]byte)
-	buf := (*bp)[:0]
+	buf := *bp
 
 	now := time.Now()
 	buf = append(buf, color...)
@@ -80,14 +72,15 @@ func log(level, color []byte, msg string) {
 
 	*bp = buf
 	select {
-	case logChan <- &logEntry{buf: buf}:
+	case logChan <- bp:
 	default:
+		bufPool.Put(bp)
 	}
 }
 
 func logf(level, color []byte, format string, args ...any) {
 	bp := bufPool.Get().(*[]byte)
-	buf := (*bp)[:0]
+	buf := *bp
 
 	now := time.Now()
 	buf = append(buf, color...)
@@ -104,8 +97,9 @@ func logf(level, color []byte, format string, args ...any) {
 
 	*bp = buf
 	select {
-	case logChan <- &logEntry{buf: buf}:
+	case logChan <- bp:
 	default:
+		bufPool.Put(bp)
 	}
 }
 
@@ -122,7 +116,7 @@ func append3(b *[]byte, v int) {
 }
 
 func appendTime(b *[]byte, t time.Time) {
-	h, m, s := t.Hour(), t.Minute(), t.Second()
+	h, m, s := t.Clock()
 	ms := t.Nanosecond() / 1e6
 	append2(b, h)
 	*b = append(*b, ':')
@@ -137,10 +131,10 @@ func Debug(msg string) { log(lDEBUG, cyan, msg) }
 func Info(msg string)  { log(lINFO, green, msg) }
 func Warn(msg string)  { log(lWARN, yellow, msg) }
 func Error(msg string) { log(lERROR, purple, msg) }
-func Fatal(msg string) { log(lFATAL, red, msg); os.Exit(0) }
+func Fatal(msg string) { log(lFATAL, red, msg); os.Exit(1) }
 
 func Debugf(format string, args ...any) { logf(lDEBUG, cyan, format, args...) }
 func Infof(format string, args ...any)  { logf(lINFO, green, format, args...) }
 func Warnf(format string, args ...any)  { logf(lWARN, yellow, format, args...) }
 func Errorf(format string, args ...any) { logf(lERROR, purple, format, args...) }
-func Fatalf(format string, args ...any) { logf(lFATAL, red, format, args...); os.Exit(0) }
+func Fatalf(format string, args ...any) { logf(lFATAL, red, format, args...); os.Exit(1) }
