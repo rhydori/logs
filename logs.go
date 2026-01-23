@@ -18,6 +18,10 @@ var (
 			return &b
 		},
 	}
+
+	wg   sync.WaitGroup
+	once sync.Once
+
 	reset = []byte("\033[0m")
 
 	red    = []byte("\033[31m")
@@ -43,16 +47,23 @@ func init() {
 		reset, red, green, yellow, blue, purple, cyan = nil, nil, nil, nil, nil, nil, nil
 	}
 
+	wg.Add(1)
 	go writer()
 }
 
 func writer() {
+	defer wg.Done()
 	for bp := range logChan {
 		os.Stdout.Write(*bp)
 		*bp = (*bp)[:0]
 
 		bufPool.Put(bp)
 	}
+}
+
+func Shutdown() {
+	once.Do(func() { close(logChan) })
+	wg.Wait()
 }
 
 func log(level, color []byte, msg string) {
@@ -131,10 +142,10 @@ func Debug(msg string) { log(lDEBUG, cyan, msg) }
 func Info(msg string)  { log(lINFO, green, msg) }
 func Warn(msg string)  { log(lWARN, yellow, msg) }
 func Error(msg string) { log(lERROR, purple, msg) }
-func Fatal(msg string) { log(lFATAL, red, msg); os.Exit(1) }
+func Fatal(msg string) { log(lFATAL, red, msg); Shutdown(); os.Exit(1) }
 
 func Debugf(format string, args ...any) { logf(lDEBUG, cyan, format, args...) }
 func Infof(format string, args ...any)  { logf(lINFO, green, format, args...) }
 func Warnf(format string, args ...any)  { logf(lWARN, yellow, format, args...) }
 func Errorf(format string, args ...any) { logf(lERROR, purple, format, args...) }
-func Fatalf(format string, args ...any) { logf(lFATAL, red, format, args...); os.Exit(1) }
+func Fatalf(format string, args ...any) { logf(lFATAL, red, format, args...); Shutdown(); os.Exit(1) }
